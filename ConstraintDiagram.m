@@ -7,50 +7,121 @@ clc
 %% Defining Input Parameters
 
 g = 9.81; % gravity (m/s^2)
-WL = linspace(1,1000,1000); % Wing Loading array
+WL = linspace(0,10000,1000); % Wing Loading array
+%Wo = 25000 * 0.4535924; % Takeoff Weight
+
+% The following parameters are guesses, and will be refined through trade
+% study and sizing.
+
+AR = 2.5; % Aspect Ratio
+e = 0.75; % Oswald efficiency Factor
+
+
 
 %% Takeoff curve
 
 % Defining Takeoff Parameters
 S_G = 2000*0.3048; % Takeoff ground run (m)
-beta = 1; % Weight fraction (1 at takeoff)
 % Velocity used below is V_LOT = 120 knots (F-15 V_LOT)
 q = 0.5 * 1.225 * (61.73336/sqrt(2))^2; % Dynamic Pressure (N/m^2)
 CL_max = 1.2; % Max CL during TO (common value for fighter jets)
 CD_TO = 0.025; % Typical turboprop military trainer value
 CL_TO = 0.7; % Typical turboprop military trainer value
 mu = 0.04; %Ground friction constant (typical value is 0.04)
+alpha = 0.68;
 
-T_loading_TO = (1.21./(g.*q.*CL_max.*S_G)) .* (WL) + (0.605./CL_max) .* (CD_TO - mu*CL_TO) + mu;
+% Beta is ommitted because it equals 1 at takeoff
+T_loading_TO = (1/alpha) .* ((1.21./(g.*q.*CL_max.*S_G)) .* (WL) + (0.605./CL_max) .* (CD_TO - mu*CL_TO) + mu);
 
 
 
 %% Climb Curve
 
 % Defining Climb Parameters
-% 35,000 ft in a minute in less than 4.8 nautical miles
-rateofclimb = (35000/1) * (0.3048) * (1/60);
-V_x = (4.8/1) * (1852) * (1/60);
+% 35,000 ft in a minute in less than 4.8 nautical miles (from RFP)
+rateofclimb = (35000/1) * (1/3.281) * (1/60); % converted from ft/min to m/s
+V_x = (4.8/1) * (1852) * (1/60); % Converted from nm/min to m/s
 V_v = rateofclimb; % Vertical speed (m/s)
-Vinf = sqrt((V_v^2) + (rateofclimb^2)); % Airspeed (m/s)
+Vinf = sqrt((V_v^2) + (V_x^2)); % Airspeed (m/s)
 q = 0.5 * (1.225/3) * (Vinf)^2; % Redefine rho
 CD_min = 0.022; % Minimum CD
-k = 1 / (pi * 0.73 * 2.5); % assuming AR=2.5 & e=0.73 (Tradeoff study needed)
+k = 1 / (pi * AR * e); % (Tradeoff study needed for AR and e)
 
-T_Loading_Climb = (V_v./Vinf) + (q./WL).*CD_min + (k./q) .* (WL);
+% Normalizing to SL
+beta = 0.97; % Guess based on F16 climb weight fraction 
+alpha = 0.49; % Guess based on average altitude of 17500 ft
 
-%% +7/-3 g Turn Curve
 
+T_Loading_Climb = (beta./alpha).*((V_v./Vinf) + (q./(WL.*beta)).*CD_min + (k./q) .* (WL.*beta));
+
+%% +7 g Turn Curve
+% At 35000 ft
 n = sqrt(1 + (7)^2); % Load factor
+Vinf = 7*g/(18 * 2*pi/360);
+q = 0.5 * (0.379) * (Vinf)^2
 
-T_Loading_Turn = q .* ((CD_min ./ WL) + k .* (n./q).^2 .* WL);
+% Normalizing to SL
+beta = 0.9; % Guess based on F16 cruise weight fraction 
+alpha = 0.21; % Value for LBP turbofan @ 35000 ft
 
-%% Constant Altitude/Speed Cruise (P_s = 0)
 
-q = 0.5 * 0.3796 * (257.9421)^2; % Dynamic pressure (using F-16 cruise speed)
+T_Loading_Turn = (beta./alpha) .* (q .* ((CD_min ./ (WL.*beta)) + k .* ((n./q).^2) .* (WL.*beta)));
+
+%% -3 g Turn Curve
+
+n = sqrt(1 + (3)^2); % Load factor
+Vinf = 3*g/(18 * 2*pi/360);
+q = 0.5 * (0.379) * (Vinf)^2;
+
+% Normalizing to SL
+beta = 0.9; % Guess based on F16 cruise weight fraction 
+alpha = 0.21; % Value for LBP turbofan @ 35000 ft
+
+
+T_Loading_Turn2 = (beta./alpha) .* (q .* ((CD_min ./ (WL.*beta)) + k .* ((n./q).^2) .* (WL.*beta)));
+
+
+%% Constant Altitude/Speed Cruise (P_s = 0) 35000 ft
+% Assuming 35000ft 
+q = 0.5 * 0.379 * (259.2832)^2; % Dynamic pressure (using F-16 cruise speed)
 CD_min = 0.022; % Minimum CD
 
-T_Loading_SL = (q .* CD_min .* (1./WL)) + (k .* (1./q) .* WL);
+
+% Normalizing to SL
+beta = 0.9; % Guess based on F16 cruise weight fraction
+% Could be up to the beta value for climb
+alpha = 0.21; % Value for LBP turbofan @ 35000 ft
+
+
+T_Loading_Cruise = (beta./alpha).*((q .* CD_min .* (1./(WL .* beta))) + (k .* (1./q) .* (WL.*beta)));
+
+%% Constant Altitude/Speed Cruise (P_s = 0) 25000 ft
+% Assuming 35000ft 
+q = 0.5 * 0.5669 * (259.2832)^2; % Dynamic pressure (using F-16 cruise speed)
+CD_min = 0.022; % Minimum CD
+
+
+% Normalizing to SL
+beta = 0.9; % Guess based on F16 cruise weight fraction
+% Could be up to the beta value for climb
+alpha = 0.21; % Value for LBP turbofan @ 35000 ft
+
+
+T_Loading_Cruise2 = (beta./alpha).*((q .* CD_min .* (1./(WL .* beta))) + (k .* (1./q) .* (WL.*beta)));
+
+%% Constant Altitude/Speed Cruise (P_s = 0) 15000 ft
+% Assuming 35000ft 
+q = 0.5 * 0.773 * (259.2832)^2; % Dynamic pressure (using F-16 cruise speed)
+CD_min = 0.022; % Minimum CD
+
+
+% Normalizing to SL
+beta = 0.9; % Guess based on F16 cruise weight fraction
+% Could be up to the beta value for climb
+alpha = 0.21; % Value for LBP turbofan @ 35000 ft
+
+
+T_Loading_Cruise3 = (beta./alpha).*((q .* CD_min .* (1./(WL .* beta))) + (k .* (1./q) .* (WL.*beta)));
 
 %% Landing Curve NOT DONE
 
@@ -58,16 +129,18 @@ T_Loading_SL = (q .* CD_min .* (1./WL)) + (k .* (1./q) .* WL);
 
 
 %% Plotting
-
-plot(WL,T_loading_TO,"--b");
+WL_imperial = WL .*0.020885;
+plot(WL_imperial,T_loading_TO,"-b");
 hold on
-plot(WL,T_Loading_Climb,"--r");
-plot(WL,T_Loading_SL,"--g");
-plot(WL,T_Loading_Turn,"--k");
-legend("Takeoff","Climb","Cruise","Sustained Turn")
+plot(WL_imperial,T_Loading_Climb,"-r");
+plot(WL_imperial,T_Loading_Cruise,"-g");
+plot(WL_imperial,T_Loading_Cruise2);
+plot(WL_imperial,T_Loading_Cruise3);
+plot(WL_imperial,T_Loading_Turn,"-k");
+plot(WL_imperial,T_Loading_Turn2,"-c")
+legend("Takeoff","Climb","Cruise (35k ft)","Cruise (25k ft)","Cruise (15k ft)","Sustained Turn (+7g)","Sustained Turn (-3g)")
 title('Constraint Diagram Iteration 1');
-xlabel('Wing Loading');
+xlabel('Wing Loading (Lb_f/ft^2)');
 ylabel('Thrust to Weight');
-
-xlim([0 1000]);
-ylim([0 10]);
+xlim([0 1500.*0.020885]);
+ylim([0 8]);
