@@ -14,15 +14,15 @@ https://en.wikipedia.org/wiki/Thrust-specific_fuel_consumption#Typical_values_of
 
 
 %% Init 
-W_0 = 81000; % Gross weight (lb), set as baseline aircraft to start x
-Ma_max = 2.5; % Max mach #, set to requirement or baseline
+W_0 = 48000; % Gross weight (lb), set as baseline aircraft to start x
+Ma_max = 1.6; % Max mach #, set to requirement or baseline
 AR = 4.11*Ma_max^-0.622; % Aspect Ratio from raymer 4.3.1 table 4.1 for jet fighter x
 %TSLW0 = 0.89;
 TSLW0 = 0.514*Ma_max^0.141; % Thrust to weight ratio from raymer 5.2.4 thrust matching for jet fighter x
 %T = 29160;
-AWi = 608; % F15E wing area ft^2
-W0S = W_0/AWi; % 
-%W0S = 88.3; % Weight to area ratio (lb/ft^2), taken from baseline aircraft
+%AWi = 608; % F15E wing area ft^2
+%W0S = W_0/AWi; % 
+W0S = 141.1; % Weight to area ratio (lb/ft^2), taken from baseline aircraft
 K_vs = 1; % K_vs = 1.04; % Variable sweep constant, remove first % if variable sweep == yes x
 W_f = 0; % Fuel weight
 ec = 0.8; % Oswald efficiency for fighter raymer 5.3.7 x
@@ -38,8 +38,8 @@ W_flctl = 50;
 W_frctl = 50 + 450;
 W_syseq = 220 + 100;
 nmi = 4;
-W_sus = nmi*W_mi + W_gun + W_ammo + W_avion + W_flctl + W_frctl + W_syseq + 80 + 360;
-W_pay = W_sus;
+W_systems = W_avion + W_flctl + W_frctl + W_syseq; % Weight of systems onboard (lbm)
+W_pay = nmi*W_mi + W_gun + W_ammo + 180;
 % Optimal Conditions (Assumed to be 35000ft)
 rho_opt = 0.000738; % density at 35k ft slug/ft^3 https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
 a_opt = 576; % Sonic velocity knots https://www.military-airshows.co.uk/speedofsound.htm
