@@ -1,0 +1,280 @@
+%% AAE451 Sizing Code Team 7
+clc; clf; clear; close all;
+
+
+%% Notes
+%{
+Following the diagram from the sizing lecture
+Using sizing for our baseline aircraft following our mission.
+Baseline aircraft is F-16
+%}
+
+
+%% Init 
+W_0 = 39000; % Gross weight (lb), set as baseline aircraft to start x
+Ma_max = 1.6; % Max mach #, set to requirement or baseline
+AR = 3.09; % F-16 AR
+%AR = 4.11*Ma_max^-0.622; % Aspect Ratio from raymer 4.3.1 table 4.1 for jet fighter x
+%TSLW0 = 0.514*Ma_max^0.141; % Thrust to weight ratio from raymer 5.2.4 thrust matching for jet fighter x
+TSLW0 = 1.095; % F-16 T/W0
+W0S = 88.3; % Weight to area ratio (lb/ft^2), taken from baseline aircraft
+K_vs = 1.00; % K_vs = 1.04; % Variable sweep constant, remove first % if variable sweep == yes x
+W_f = 0; % Fuel weight
+ec = 0.8; % Oswald efficiency for fighter raymer 5.3.7 x
+C_D0 = 0.022; % Zero lift drag coeff for jets in raymer 5.3.7 x
+C_ab = 1.9; C_cr = 0.64; C_lt = 0.64; % SFC for F-16 engine
+W_mi = 327; % Missile weight lb
+nro = 511;
+W_gun = 275 + 300;
+W_ammo = 0.58 * nro;
+W_casings = 0.26 * nro;
+W_avion = 100 + 10 + 100;
+W_flctl = 50;
+W_frctl = 50 + 450;
+W_syseq = 220 + 100;
+W_tank = 600*(6.74); % Single drop pod fuel weight lb
+W_tankstr = 380; % Empty weight 1 drop tank lb
+nmi = 1; % # missile
+ncr = 1; % # crew
+W_systems = W_avion + W_flctl + W_frctl + W_syseq; % Weight of systems onboard (lbm)
+W_pay = nmi*W_mi + W_gun + W_ammo + 180*ncr; % Payload weight
+% Optimal Conditions (Assumed to be 35000ft)
+rho_opt = 0.000738; % density at 35k ft slug/ft^3 https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
+a_opt = 576; % Sonic velocity knots https://www.military-airshows.co.uk/speedofsound.htm
+% Sea Level Conditions
+rho_sl = 0.002378; % sl/ft^3 https://www2.anac.gov.br/anacpedia/ing-por/tr1611.htm
+a_sl = 661; % Sonic velocity knots https://www.military-airshows.co.uk/speedofsound.htm
+% 35000 ft
+rho_35k = 0.000738; % Density sl/ft^3 https://www.engineeringtoolbox.com/standard-atmosphere-d_604.html
+a_35k = 576; % Sonic velocity knots https://www.military-airshows.co.uk/speedofsound.htm
+
+
+%% Calculation
+%W0S = fq(rho_35k,200)*sqrt(pi*AR*ec*C_D0);
+W_0t = W_0;
+% Looping to get the weights set
+count = 0;
+while (((W_0 > 1.005*W_0t)||(W_0 < 0.995*W_0t))||(count==0))
+    count = count + 1;
+    W_fext = max(0,W_f-7000);
+    W_tan = ceil(W_fext/W_tank)*W_tankstr;
+    W_0n = W_0 - W_fext;
+    T = TSLW0 * W_0;
+    W_f = 0;
+    W_0t = W_0; % Holding old W_0
+    A = W_0 / W0S; % Wing area ft^2
+    wew0 = fwew0(W_0n,AR,TSLW0,W0S,2.05,K_vs); % Finding empty weight x
+    wew0 = wew0 * 0.95; % Accounting for new materials
+    %disp(wew0);
+    W_e = W_0n * wew0 + W_tan;
+    %W_e = 18900;
+    %W_e = W_e;
+
+    % Mission for fuel
+    W_fc = zeros(1,12); % Consumed Fuel
+    w1w2 = zeros(1,12); % Weight ratio
+
+    % Takeoff x 1
+    w1w2(1) = 0.99; % Textbook value
+    W_fc(1) = ffc(W_0,w1w2(1));
+    W_0 = W_0 - W_fc(1);
+
+    % Climb to opt altitude x 2
+    v_cl = fvo(W_0,rho_opt,A,C_D0,AR/3,ec);
+    M_cl = v_cl / a_opt;
+    w1w2(2) = 1.0065 - 0.0325 * M_cl; % Raymer 6.3.6
+    W_fc(2) = ffc(W_0,w1w2(2));
+    W_0 = W_0 - W_fc(2);
+
+    % Cruise 300 nm @ opt alt & vel x 3
+    v_cr1 = fvo(W_0,rho_opt,A,C_D0,AR/3,ec);
+    q_cr1 = fq(rho_opt,v_cr1);
+    LD_cr1 = fLD(q_cr1,C_D0,W_0,A,AR,ec);
+    w1w2(3) = fBrCr(300,C_cr,v_cr1,LD_cr1);
+    W_fc(3) = ffc(W_0,w1w2(3));
+    W_0 = W_0 - W_fc(3);
+
+    % Patrol for 4 hr loiter 35k feet x 4
+    v_lt1 = 0.76 * fvo(W_0,rho_35k,A,C_D0,AR,ec); % Velocity for min power is 76% of velocity for min thrust
+    q_lt1 = fq(rho_35k,v_lt1);
+    LD_lt1 = fLD(q_lt1,C_D0,W_0,A,AR,ec);
+    w1w2(4) = fBrLo(4,C_lt,LD_lt1);
+    W_fc(4) = ffc(W_0,w1w2(4));
+    W_0 = W_0 - W_fc(4);
+    dlt1 = v_lt1 * 4;
+    fprintf('Patrol dist: %f\n',dlt1);
+    %disp(dlt1);
+
+    % 100 nm dash x 5
+    v_da = a_35k * Ma_max;
+    q_da = fq(rho_35k,v_da);
+    LD_da = fLD(q_da,C_D0,W_0,A,AR,ec);
+    w1w2(5) = fBrCr(100,C_ab,v_da,LD_da);
+    W_fc(5) = ffc(W_0,w1w2(5));
+    W_0 = W_0 - W_fc(5);
+
+    % One sustained 360o turn (Ps = 0) at Mach = 1.2 x 6
+    v_t1 = a_35k * 1.2;
+    q_t1 = fq(rho_35k,v_t1);
+    LD_t1 = fLD(q_t1,C_D0,W_0,A,AR,ec);
+    TW = T / W_0;
+    w1w2(6) = fCbt(TW,LD_t1,v_t1,1,C_cr);
+    W_fc(6) = ffc(W_0,w1w2(6));
+    W_0 = W_0 - W_fc(6);
+
+    % One sustained 360o turn (Ps = 0) at Mach = 0.9 x 7
+    v_t2 = a_35k * 0.9;
+    q_t2 = fq(rho_35k,v_t2);
+    LD_t2 = fLD(q_t2,C_D0,W_0,A,AR,ec);
+    TW = T / W_0;
+    w1w2(7) = fCbt(TW,LD_t2,v_t2,1,C_cr);
+    W_fc(7) = ffc(W_0,w1w2(7));
+    W_0 = W_0 - W_fc(7);
+
+    % Fire Missiles x
+    W_0 = W_0 - nmi*W_mi;
+
+    % Climb to opt alt x 8
+    w1w2(8) = 0.99; % Value from example for climbing while already at speed
+    W_fc(8) = ffc(W_0,w1w2(8));
+    W_0 = W_0 - W_fc(8);
+
+    % 400 nm cruise at opt x 9
+    v_cr2 = fvo(W_0,rho_opt,A,C_D0,AR/3,ec);
+    q_cr2 = fq(rho_opt,v_cr2);
+    LD_cr2 = fLD(q_cr2,C_D0,W_0,A,AR,ec);
+    w1w2(9) = fBrCr(400,C_cr,v_cr2,LD_cr2);
+    W_fc(9) = ffc(W_0,w1w2(9));
+    W_0 = W_0 - W_fc(9);
+
+    % Descent to Sea Level x 10
+    w1w2(10) = 0.99; % From textbook
+    W_fc(10) = ffc(W_0,w1w2(10));
+    W_0 = W_0 - W_fc(10);
+
+    % Loiter Sea Level 0.5 hr x 11
+    v_lt2 = 0.76 * fvo(W_0,rho_sl,A,C_D0,AR,ec);
+    q_lt2 = fq(rho_sl,v_lt2);
+    LD_lt2 = fLD(q_lt2,C_D0,W_0,A,AR,ec);
+    w1w2(11) = fBrLo(0.5,C_lt,LD_lt2);
+    W_fc(11) = ffc(W_0,w1w2(11));
+    W_0 = W_0 - W_fc(11);
+    dlt2 = v_lt2 * 0.5;
+    fprintf('Loiter dist: %f\n',dlt2);
+
+    % Land x 12
+    w1w2(12) = 0.992; % From Textbook
+    W_fc(12) = ffc(W_0,w1w2(12));
+    W_0 = W_0 - W_fc(12);
+
+    % Gross
+    W_f = sum(W_fc) * 1.06; % Account for trapped fuel
+    W_fext = max(0,W_f-7000);
+    W_tan = ceil(W_fext/W_tank)*W_tankstr;
+    W_0 = W_e + W_f + W_pay + W_tan; % New gross weight
+
+    % Display
+    %disp(prod(w1w2));
+    %disp(w1w2);
+    fprintf('It: %f\n',count);
+    fprintf('W_0: %f\n',W_0);
+    fprintf('W_e: %f\n',W_e);
+    fprintf('W_f: %f\n',W_f);
+    fprintf('\n');
+end
+ 
+
+%% Functions
+% Empty To Gross Weight Ratio
+%{
+W_0: Gross Weight (lb)
+AR: Aspect Ratio
+TSLW0: T_SL/W0 Ratio (imperial)
+W0S: W_0/S (lb/ft^2)
+Ma_max: Max Mach #
+K_vs: Variable Sweep Constant
+%}
+function wew0 = fwew0(W_0,AR,TSLW0,W0S,Ma_max,K_vs)
+    a = -0.02; b = 2.16; c1 = -0.1; c2 = 0.2; c3 = 0.04; c4 = -0.1; c5 = 0.08; % For jet fighter
+    wew0 = (a+b*(W_0^c1)*(AR^c2)*(TSLW0^c3)*(W0S^c4)*(Ma_max^c5))*K_vs;
+    return;
+end
+
+% Breguet Cruise (good)
+%{
+R: Range (Nmi)
+C: Thrust Specific Fuel Consumption
+V: Velocity
+LD: L/D Ratio
+%}
+function w2w1 = fBrCr(R,C,V,LD)
+    w2w1 = exp((-R*C)/(V*LD)); return;
+end
+
+% L/D (good)
+%{
+q: Dynamic pressure
+CD_0: Skin drag
+W: Weight
+S: Surface area
+AR: Aspect Ratio
+ec: efficiency
+%}
+function LD = fLD(q,CD_0,W,S,AR,ec)
+    LD = 1/(((q*CD_0)/(W/S))+((W/S)*(1/(q*pi*AR*ec)))); return;
+end
+
+% Dynamic Pressure (good)
+%{
+rho: Density (slug/ft^3)
+V: Velocity (kts)
+%}
+function q = fq(rho,V)
+    q = 0.5 * rho * (V * 1.688)^2; return;
+end
+
+% Consumed Fuel (good)
+%{
+%}
+function fc = ffc(W,R)
+    fc = W*(1-R); return;
+end
+
+% Breguet Loiter
+%{
+E: Endurance
+C: Thrust Specific Fuel Consumption
+LD: L/D Ratio
+%}
+function w2w1 = fBrLo(E,C,LD)
+    w2w1 = exp((-E*C)/LD); return;
+end
+
+% Optimal Velocity from example
+%{
+W: Weight lb
+rho: density slug/ft^3
+A: Wing area ft^2
+C_D0: zl drag ratio
+AR: aspect ratio
+e: oswald efficiency
+vopt: optimal velocity Knots
+%}
+function vopt = fvo(W,rho,A,C_D0,AR,e)
+    vopt = sqrt((2*W/(rho*A))*sqrt(1/(pi*AR*e*C_D0))) / 1.688; return;
+end
+
+% Combat weight ratio
+%{
+TW: Thrust to weight
+LD: Lift to drag
+V: velocity knots
+x: # full turns
+C: specific fuel consumption
+%}
+function w2w1 = fCbt(TW,LD,V,x,C)
+    g = 68680.75; % Grav accel knot/hr
+    n = (TW*LD);
+    d = (2*pi*V*x)/(g*sqrt((n^2)-1));
+    w2w1 = 1 - C * (TW) * d; return;
+end
